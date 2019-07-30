@@ -1,4 +1,5 @@
 --[[
+	31 Jul, 2018 updated by hanxi
 	12:24 2015/9/30	  lilien
 
 ]]
@@ -6,7 +7,6 @@ local ffi = require 'ffi'
 local ffi_new = ffi.new
 local ffi_str = ffi.string
 local ffi_copy = ffi.copy
-local setmetatable = setmetatable
 local _M = { }
 local mt = { __index = _M }
 
@@ -14,9 +14,9 @@ local mt = { __index = _M }
 struct CRYPT_STREAM;
 typedef struct CRYPT_STREAM *MCRYPT;
 
-MCRYPT mcrypt_module_open(char *algorithm,
-                          char *a_directory, char *mode,
-                          char *m_directory);
+MCRYPT mcrypt_module_open(const char *algorithm,
+                          const char *a_directory, const char *mode,
+                          const char *m_directory);
 
 int mcrypt_generic_init(const MCRYPT td, void *key, int lenofkey,
                         void *IV);
@@ -24,7 +24,7 @@ void free(void *ptr);
 void mcrypt_free(void *ptr);
 
 int mcrypt_enc_get_key_size(const MCRYPT td);
-int mcrypt_enc_get_supported_key_sizes(const MCRYPT td, int* len);
+int* mcrypt_enc_get_supported_key_sizes(const MCRYPT td, int* len);
 
 int mcrypt_generic_deinit(const MCRYPT td);
 int mcrypt_generic_end(const MCRYPT td);
@@ -37,14 +37,14 @@ int mcrypt_enc_is_block_mode(MCRYPT td);
 int mcrypt_enc_get_block_size(MCRYPT td);
 ]]
 
-local mcrypt = ffi.load('libmcrypt.so.4')
+local mcrypt = ffi.load('mcrypt')
 
 _M.new = function (self)
     local cipher = 'rijndael-128'
     local mode = 'ecb'
 
-    local c_cipher 	=	ffi_new("char[?]",#cipher+1, cipher)
-    local c_mode 	=	ffi_new("char[4]", mode)
+    local c_cipher 	=	ffi_new("const char*", cipher)
+    local c_mode 	=	ffi_new("const char*", mode)
 
     local td = mcrypt.mcrypt_module_open(c_cipher, nil, c_mode, nil)
     return setmetatable( { _td = td }, mt )
@@ -58,8 +58,8 @@ _M.pass = function (self, key, raw,enc_or_dec)
     local cipher = 'rijndael-128'
     local mode = 'ecb'
 
-    local c_cipher 	=	ffi_new("char[?]",#cipher+1, cipher)
-    local c_mode 	=	ffi_new("char[4]", mode)
+    local c_cipher 	=	ffi_new("const char*",cipher)
+    local c_mode 	=	ffi_new("const char*", mode)
 		local td = mcrypt.mcrypt_module_open(c_cipher, nil, c_mode, nil)
 
 		if  td ==0  then
@@ -80,9 +80,8 @@ _M.pass = function (self, key, raw,enc_or_dec)
 		end
 
 		count 	=	ffi_new("int[1]")
-		local key_size_tmp = mcrypt.mcrypt_enc_get_supported_key_sizes(td, count);
-		local key_length_sizes = ffi.cast("int *",key_size_tmp)
-
+		local key_length_sizes = mcrypt.mcrypt_enc_get_supported_key_sizes(td, count);
+		
 		local key_s	=	nil;
 
 		if count[0] == 0 and key_length_sizes == nil then --/* all lengths 1 - k_l_s = OK */
